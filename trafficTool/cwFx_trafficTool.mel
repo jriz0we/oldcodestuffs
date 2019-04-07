@@ -1,0 +1,550 @@
+//Copyright (c) 2004-2010 Lucasfilm Ltd. All rights reserved. Used under
+//authorization. This material contains the confidential and proprietary
+//information of Lucasfilm Ltd. and may not be copied in whole or in part
+//without the express written permission of Lucasfilm Ltd. This copyright
+//notice does not imply publication.
+//***************************************************************************************
+//
+// last updated by Josh Rowe Nov 2009
+// made sandbox compliant Feb 2010
+//
+//
+//***************************************************************************************
+
+/*	las_connectTraffic
+ *	- connect/disconnect emitters to/from traffic lines
+ *	- args: 0 to disconnect, 1 to connect
+ */
+source mayascenepath;
+global proc las_connectTraffic(int $ifConnect){
+        if ($ifConnect>0){
+  		$emitters = `ls "trffcLn*:emitter1Traffic"`;
+  		for ($each in $emitters){
+    			int $simStart = `playbackOptions -q -min` -25;
+    			playbackOptions -min 80;
+                        playButtonStart;
+  			connectDynamic -em $each trafficPtcles;
+  		}
+	}
+	else 	{
+	  	$emitters = `ls "trffcLn*:emitter1Traffic"`;
+  		for ($each in $emitters){
+	    		int $simStart = `playbackOptions -q -min` -25;
+	    		playbackOptions -min 80;
+	  		connectDynamic -d -em $each trafficPtcles;
+	  	}
+	}
+                //Clean up imports
+       string $arr_trafficLines[] = `ls-l "trffcLn*:*trafficLine1"`;
+       for ($each in $arr_trafficLines){
+               string $srcLine = `match $each "trafficRIG"`;
+               if ($srcLine != "trafficRIG") parent $each "trafficRIG";
+        }
+}
+
+/*	displayText
+ *	- show/hide labels. actually, all nodes named "Text*" in scene will be hidden
+ *	- args: 0 to show, 1 to hide
+ */	
+global proc displayText(int $display){
+	if ($display>0)
+	{
+	  	hide "*:*Text*";
+	}
+	else
+	{
+		showHidden -a "*:*Text*";
+	}
+}
+/*	changeTrafficDisplay
+*
+ */	
+global proc changeTrafficDisplay(int $disp ) {
+        switch ($disp)
+        {
+                case 0:
+                       print ("hide everything!\n");
+                       setAttr "trafficInstancer.levelOfDetail" 2;
+                       setAttr "trafficInstancer.visibility" 0;
+                       setAttr "trafficPtcles.visibility" 0;
+                       break;
+
+                case 1:
+                        playButtonStart;
+                        print ("hide Instancer, display sprites!\n");
+                        setAttr "trafficInstancer.levelOfDetail" 2;
+                        setAttr "trafficInstancer.visibility" 0;
+                        setAttr "trafficPtcles.visibility" 1;
+                        break;
+                        
+                case 2:
+                        playButtonStart;
+                        print ("hide sprites, display boxes!\n");
+                        setAttr "trafficInstancer.levelOfDetail" 1;
+                        setAttr "trafficInstancer.visibility" 1;
+                        setAttr "trafficPtcles.visibility" 0;
+                        break;
+
+                case 3:
+                        playButtonStart;
+                        print ("look out memory display geo!\n");
+                        setAttr "trafficInstancer.levelOfDetail" 0;
+                        setAttr "trafficInstancer.visibility" 1;
+                        setAttr "trafficPtcles.visibility" 0;
+                        break;
+
+                default:
+                        break;
+        }
+	
+}
+/*	las_trafficCache
+ *	
+ */	
+global proc las_trafficCache(int $cache){
+	if ($cache>0)
+	{
+	  $sPath =((`getenv "TASK_PATH"`) + "/maya/particles");
+		setAttr -type "string" trafficPtclesShape.PEbasePath $sPath;
+  		//int $simStart = playbackOptions -q -min;
+  		//playbackOptions -ast $simStart;
+  		int $end = `playbackOptions -q -max`;
+  		int $start = `playbackOptions -q -min`;
+  	
+  		setAttr "trafficPtclesShape.PEstartFrame" $start;
+  		setAttr "trafficPtclesShape.PEendFrame" $end;
+  
+  		$particle = "trafficPtcles";  
+  		select -clear;
+  		select $particle;
+	
+  		currentTime $start;
+  
+  		dynExport -path "TRAFFIC_CACHE" -f cache -mnf $start -mxf $end -oup 0 -all 0;
+  		select -clear;
+  		select $particle;
+  		hide $particle;
+  		showHidden -a trafficInstancer;
+	}
+	else
+	{
+  		select -clear ;
+  		setAttr "dynGlobals1.useParticleDiskCache" 0;
+                playButtonStart;
+  		hide trafficInstancer;
+  		showHidden -a trafficPtcles;
+	}
+}
+
+/**	trafficCacheGUI
+ **	- the meat and bones of what makes the traffic work. the GUI from which the user will drive the tool.
+ **/	
+global proc trafficCacheGUI(){
+	// only one instance of this window open at a time
+  	if (`window -ex traffic` > 0) {
+  		deleteUI traffic;
+	}
+	
+	window -title "The Clone Wars Traffic Creation Tool 3.0" traffic;
+  scrollLayout -horizontalScrollBarThickness 24 -verticalScrollBarThickness 24;
+	columnLayout -columnWidth 400 -columnAlign "center"; 
+		text -label "";
+	 	columnLayout -columnAttach "both" 15 -adjustableColumn true -columnAlign "center" -rowSpacing 10  ;
+
+	//**************************//
+	//** melscript for STEP 1 **//
+ 			frameLayout -label "Step 1 : Load Traffic Rig and Single Lines" -labelAlign "bottom" -marginWidth 10 -borderStyle "in";
+ 			 	columnLayout;
+			        	text -label  "";
+			                text -label "If your scene has Zviz traffic placeholder, then just click \"from Zviz\" to hook up all";
+			                text -label "placeholders with active traffic rigs.";
+                			text -label "";
+			                text -label "Add Traffic Lines as needed to create more traffic lines after you've imported the rig." ;
+                		text -label "";
+ 				  	rowLayout  -numberOfColumns 3 -columnWidth3 195 195 195;
+                				if (!objExists ("trafficRIG"))//if a trafficRig is already in the scene do not display this button
+                  					iconTextButton -label "Create From Zviz" -image1 "traffic_ZVIZ.xpm" -w 145 -style "iconAndTextVertical" 
+                                                        -annotation "Use this if scene is an exported Traffic scene from Zviz" -c "createTrafficFromZviz;trafficCacheGUI";
+                				if (!objExists ("trafficRIG"))//if a trafficRig is already in the scene do not display this button
+                  					iconTextButton -label "Create Traffic Rig" -image1 "traffic_REGULAR.xpm" -w 145 -style "iconAndTextVertical" 
+                                                        -annotation "Creates everything needed for a single path of standard traffic" -c "importTrafficRig(0);trafficCacheGUI";
+						iconTextButton -label "Add Traffic Line" -image1 "traffic_MILD_line.xpm" -w 145 -style "iconAndTextVertical"
+                                                        -annotation "Generate an additional line of standard traffic" -c "duplicateTrafficLine";
+            					setParent ..;
+                		text -label "";
+				setParent ..;
+          		setParent ..;
+
+	//**************************//
+	//** melscript for STEP 2 **//
+	  	frameLayout -label "Step 2 : Connect Particles" -labelAlign "bottom" -marginWidth 10 -borderStyle "in";
+	  		columnLayout;
+                		text -label "";
+                		rowLayout  -numberOfColumns 2 -columnWidth2 320 320;
+			                iconTextButton -label "Connect Particles to Traffic Lines" -c "las_connectTraffic(1)" -image1 "traffic_parts2spline.xpm"
+                                        -h 85 -w 200 -style "iconAndTextVertical" -annotation "Attaches particles in traffic rig to your lines of traffic";
+	                		iconTextButton -label "Disconnect Particles From Traffic Lines" -c "las_connectTraffic(0)" -image1 "traffic_partsOFFspline.xpm" 
+                                        -h 85 -w 200 -style "iconAndTextVertical" -annotation "Disconnects particles from the traffic lines";
+					setParent ..;
+				text -label "";	
+                		text -label  "                          'Connect Particles' when you're done adding traffic lines." -align "center";;		
+                		text -label  "                      'Disconnect Particles' if you need to import more lines of traffic." -align "center";;
+
+
+            			setParent ..;
+          		setParent ..;
+
+	//**************************//
+	//** melscript for STEP 3 **//
+	  	frameLayout -label "Step 3 : Cache Traffic For Rendering" -labelAlign "bottom" -marginWidth 10 -borderStyle "in";
+ 			columnLayout;
+                		text -label "";
+                		text -label "'Cache Traffic' when all of your traffic lines are in place" -align "center";
+                		button -height 32 -w 540 -annotation "Generate the caches to be able to Render" -c "las_trafficCache(1)" "Cache Traffic";
+                		text -label "";
+                		text -label "'Disable Cache' if you need to adjust traffic lines or export your scene." -align "center";;
+                		button -height 32 -w 540 -annotation "Disable Cache and Go Back to Interaction Mode, Steps #1 and #2" -c "las_trafficCache(0)" "Disable Cache";
+                		text -label "";
+            			setParent ..;
+			setParent ..;
+
+	//*******************************************************************************************************//
+	//** melscript for "Display Level of Traffic Geometry" and "Display Traffic Spline Labels" part of GUI **//
+		frameLayout -label "Step 4 : Adjustments" -labelAlign "bottom" -marginWidth 10 -borderStyle "in";
+			columnLayout;
+				text -label "";	
+				rowLayout -annotation "Visibility Settings" -numberOfColumns 2 -columnWidth2 275 275 VisibilityFrame;
+					setParent VisibilityFrame;
+					frameLayout -label "    Display Level of Traffic Geometry    " -labelAlign "bottom" -marginWidth 15 -borderStyle "etchedIn" -h 118 -w 263 DisplayGeoFrame;
+						setParent DisplayGeoFrame;
+			            		columnLayout -columnWidth 250 -rowSpacing 4;
+				                	string $radioButton0, $radioButton1, $radioButton2, $radioButton3;
+			        	        	radioCollection;
+						                $radioButton0 = `radioButton -label "Hide Traffic"`;
+                                                                $radioButton1 = `radioButton -label "Sprite View"`;
+						                $radioButton2 = `radioButton -label "Individual Bounding Boxes"`;
+						                $radioButton3 = `radioButton -label "Actual Geometry"`;
+			          			setParent ..;
+						setParent ..;
+			
+			                radioButton -annotation "Hides traffic in one single bounding box for fastest playback" 
+                                        -align "center" -edit -onc "changeTrafficDisplay(0)" $radioButton0;
+                                        radioButton -annotation "Display traffic as sprites for faster playback" 
+                                        -align "center" -edit -onc "changeTrafficDisplay(1)" $radioButton1;
+			                radioButton -annotation "Displays traffic as bounding boxes (average playback speed)"
+                                        -align "center" -edit -onc "changeTrafficDisplay(2)" $radioButton2;
+			                radioButton -annotation "Displays traffic as renderable geometry. (slower playback speed)" 
+                                        -align "center" -edit -onc "changeTrafficDisplay(3)" $radioButton3;
+			
+					setParent VisibilityFrame;
+			          	frameLayout -label "      Display Traffic Spline Labels     " -labelAlign "bottom" -marginWidth 15 -borderStyle "etchedIn" -h 91 -w 263 DisplaySplineFrame;
+						setParent DisplaySplineFrame;
+			            		columnLayout -columnWidth 250 -rowSpacing 3;
+				                	string $radioButton1, $radioButton2 ;
+				                	radioCollection;
+				                		$radioButton4 = `radioButton -label "Hide Traffic Labels"`;
+				                		$radioButton5 = `radioButton -label "Display Traffic Labels"`;
+				            		setParent ..;
+			          		setParent ..;
+
+        			        radioButton -annotation "Hide Traffic Line Labels" -align "center" -edit -onCommand "displayText(1)" $radioButton4;
+			                radioButton -annotation "Display Traffic Line Labels" -align "center" -edit -onCommand "displayText(0)" $radioButton5;
+				setParent ..;
+
+	//*******************************************************************************************************//
+	//************ melscript for "Set Traffic Emitter Rate" and "Other Miscl Setting" parts of GUI **********//
+
+				text -label "";
+				rowLayout -annotation "miscl settings" -numberOfColumns 4 -columnWidth4 180 130 130 130 MisclFrame;
+					setParent MisclFrame;
+					frameLayout -label "Select Traffic Node" -labelAlign "top" -borderStyle "etchedIn" -h 97 -w 180 EmitterFrame;
+						setParent EmitterFrame;
+						columnLayout;
+							button -label "Traffic Line node"    -annotation "select any part of the TRAFFIC PATH, and click this to select node to move path" 
+                                                        -c "select `getNodeOnSelected(1)`" -width 170 selectLineButton;
+							button -label "Traffic Emitter node" -annotation "select any part of the TRAFFIC PATH, and click this to select its emitter"
+                                                        -c "select `getNodeOnSelected(2)`" -width 170 selectEmitterButton;
+						setParent ..;
+					setParent MisclFrame;
+					frameLayout -label "Set Density" -labelAlign "top" -borderStyle "etchedIn" -h 97 -w 130 EmitterFrame2;
+						setParent EmitterFrame2;
+						columnLayout;
+							button -label "Decrease" -annotation "set emission rate of traffic on selected traffic lines to \"Decrease\" settings"   
+                                                        -c "changeTrafficDensity(0.75)" -width 120 changeTrafficLessDenseButton;
+							button -label "Default"  -annotation "set emission rate of traffic on selected traffic lines to \"Standard\" settings" 
+                                                        -c"changeTrafficDensity(1.0)" -width 120 changeTrafficStdDenButton;
+							button -label "Increase" -annotation "set emission rate of traffic on selected traffic lines to \"Increase\" settings"  
+                                                        -c "changeTrafficDensity(1.25)" -width 120 changeTrafficMoreDenButton;
+						setParent ..;
+					setParent MisclFrame;
+                                        frameLayout -label "Set Speed" -labelAlign "top" -borderStyle "etchedIn" -h 97 -w 130 EmitterFrame3;
+						setParent EmitterFrame3;
+						columnLayout;
+							button -label "Slower" 	-annotation "set emission rate of traffic on selected traffic lines to \"Decrease\" settings"   
+                                                        -c "changeTrafficSpeed(0.75)" -width 120 changeTrafficSlowerButton;
+							button -label "Default"  -annotation "set emission rate of traffic on selected traffic lines to \"Standard\" settings"
+                                                        -c "changeTrafficSpeed(1.0)" -width 120 changeTrafficStdButton;
+							button -label "Faster" -annotation "set emission rate of traffic on selected traffic lines to \"Increase\" settings"  
+                                                        -c "changeTrafficSpeed(1.25)" -width 120 changeTrafficFasterButton;
+						setParent ..;
+					setParent MisclFrame;
+			  frameLayout -label "Render Style" -labelAlign "top" -borderStyle "etchedIn" -h 97 -w 130 EmitterFrame4;
+						setParent EmitterFrame4;
+						columnLayout;
+							button -label "Day"   -annotation "changes the lighting on the traffic geometry to \"day\" mode"   -c "changeTrafficStyle(0)" -width 120 optionButton1;
+							button -label "Night" -annotation "changes the lighting on the traffic geometry to \"night\" mode" -c "changeTrafficStyle(1)" -width 120 optionButton2;
+						setParent ..;
+					setParent ..;
+				setParent ..;
+			text -label "";
+			setParent ..;
+		setParent ..;
+
+	//*******************************************************************************************************//
+	//************* END of Traffic Creation Tool GUI ********************************************************//
+
+	helpLine -h 30;
+	showWindow traffic;
+	window -edit -widthHeight 640 900 traffic;
+
+	//las_connectTraffic(1) // Connect all emitters after placing
+	//las_connectTraffic(0) // Disconnect all emitters to be able to add more/Edit
+	//las_trafficCache(1) // Cache and create Idyne
+	//las_trafficCache(0) // Delete Cache and disconnect Idyne
+	//displayText(1) // display label text
+	//displayText(0) // hide label text
+
+}
+
+/*	changeTrafficDensity
+ *	- affects the emission rate on the selected traffic lines.(ramp up and continuous rates)
+ *	- traffic has a standard denisty of 5
+ *      - args: 0.75 less density (down to 0)
+ *      - args: 1 (reset to standard 1)
+ *      - args: 1.25 more density (up to ~6-7)
+ */	
+global proc changeTrafficDensity( float $a ){
+	// get list of selected lines
+	string $arr_selected[] = `ls -l -sl`;
+	
+	for ( $each in $arr_selected ) {
+
+		select -cl;
+		select $each;
+
+		// get emitter node on selected traffic line
+		string $tffcLn = `getNodeOnSelected(1)`;	
+		string $tffcLn_density = $tffcLn + ".TrafficDensity";
+
+		float $tffcDen = `getAttr $tffcLn_density`;
+                float $value;
+                if ($a == 1.0) $value = 1.0;
+                else $value = $a * $tffcDen;
+		setAttr $tffcLn_density $value;
+
+	}
+
+}
+
+/*	changeTrafficSpeed
+ *	- affects the particle speed on the selected traffic emitters.
+ *	 - traffic has a standard speed of 5
+ *      - args: 0.5 less density (down to 0)
+ *      - args: 1 (reset to standard 1)
+ *      - args: 1.5 more density 
+ */	
+global proc changeTrafficSpeed( float $a ){
+	// get list of selected lines
+	string $arr_selected[] = `ls -l -sl`;
+	
+	for ( $each in $arr_selected ) {
+
+		select -cl;
+		select $each;
+
+		// get emitter node on selected traffic line
+		string $tffcLn = `getNodeOnSelected(1)`;	
+		string $tffcLn_speed = $tffcLn + ".TrafficSpeed";
+
+		float $tffcSpd = `getAttr $tffcLn_speed`;
+                float $value;
+                if ($a == 1.0) $value = 1.0;
+                else $value = $a * $tffcSpd;
+		setAttr $tffcLn_speed $value;
+
+	}
+
+}
+/*      changeTrafficStyle
+*
+*/
+global proc changeTrafficStyle(int $mode){
+        if ($mode){
+                setAttr "lights_remapColor.outputMax" 2.0;
+        }
+        else if (!$mode){
+                setAttr "lights_remapColor.outputMax" 0.5;
+        }
+}
+/*	importTrafficRig
+*	- standard import of the master traffic line rig(including emitter and emission surface), the particles, the instancer, and the instancer geo
+*/	
+global proc importTrafficRig(int $mode){
+       string $masterTraffic = findGlobalMayaScene("traffic_Line_RIG_MASTER_TRAFFIC.ma");
+       //non-pathfinder version
+       //if (!objExists ("trafficRIG")) file -import -type "mayaAscii" -options "v=0"  -pr "$SHOWHOME/las_library/FX_LIB/Traffic/trafficRig/trafficRig.3.0/scenes/traffic_Line_RIG_MASTER_TRAFFIC.ma";
+       if (!objExists ("trafficRIG")) file -import -type "mayaAscii" -options "v=0"  -pr $masterTraffic;
+       if ($mode){
+              parent "trffcLn1:trafficLine1" "trafficRIG";
+       }
+}//end importTrafficRig
+
+/*	duplicateTrafficLine
+*       - imports a single traffic line (path, emitter and emission surface) with default settings
+*       - if an exisiting traffic line is selected this will import and transfer values of the the selected traffic line
+*       - or I could actually duplicate it and let maya do the hard stuff....  
+*       - this proc might be incomplete
+*/
+global proc duplicateTrafficLine(){
+        string $singleTraffic = findGlobalMayaScene("traffic_Line_MASTER.ma");
+        //else if nothing is selected import the standard
+        //else if selected duplicate that line
+        string $arr_selected[] = `ls -l -sl`;
+         //traffic rig not imported call importTrafficRig in case someone hits the buttons out of order
+        if (!objExists ("trafficRIG")) {
+                importTrafficRig(0);
+                trafficCacheGUI;//reload ui
+        } 
+        // nothing is selected import the standard
+        else if (size($arr_selected) ==0){ 
+               //currently importing the single line but I wonder if duplicating the master "rig" might be a more clever way of doing it
+               //non-pathfinder version
+               //file -import -type "mayaAscii" -options "v=0"  -pr "$SHOWHOME/las_library/FX_LIB/Traffic/trafficRig/trafficRig.3.0/scenes/traffic_Line_MASTER.ma";
+               file -import -type "mayaAscii" -options "v=0"  -pr $singleTraffic;
+        }
+        //else if something is selected take that traffic lines and duplicate it (with settings)
+        
+
+
+}//end duplicateTrafficRig
+
+/*	createTrafficFromZviz
+*	- used when the scene was exported from zviz, and the zviz scene utilized the traffic locators. 
+*	- copies the transformations of the zviz rig to imported traffic lines.
+*/	
+global proc createTrafficFromZviz(){
+    string $singleTraffic = findGlobalMayaScene("traffic_Line_MASTER.ma");
+	// get all lines exported from zviz
+	string $arr_zvizRigs[] = `ls "Coruscant_Traffic__*:Offset"`;
+	string $arr_preExistingTrafficLines[] = `ls "trffcLn*:trafficLine1"`;
+	// for each..
+	int $i;
+	for ($i = size($arr_preExistingTrafficLines); $i < size($arr_zvizRigs); $i++) {
+
+		if ($i == 0) {
+			// import regular traffic rig (once)
+			importTrafficRig(0);
+                       
+		} else {
+			// duplicate traffic line
+			//non-pathfinder version
+            //file -import -type "mayaAscii" -options "v=0" -pr "$SHOWHOME/las_library/FX_LIB/Traffic/trafficRig/trafficRig.3.0/scenes/traffic_Line_MASTER.ma";
+            file -import -type "mayaAscii" -options "v=0"  -pr $singleTraffic;
+		}
+	}
+	
+	// should have as many traffic lines as there are zvizTrafficRigs
+	string $arr_trafficLines[] = `ls "trffcLn*:*trafficLine1"`;
+
+	if ( size($arr_trafficLines) != size($arr_zvizRigs) ) {
+		print "ERROR: number of traffic lines does not match number of zviz traffic rigs!\n";
+		return;
+	} else {
+		// copy position (translation/rotation)
+		for ($i = 0; $i < size($arr_zvizRigs); $i++) {
+			string $setAttr;
+			string $getAttr;
+
+			// translate
+			$setAttr = $arr_trafficLines[$i] + ".translate";
+			$getAttr = $arr_zvizRigs[$i] + ".translate";
+			float $arr_XYZ[] = `getAttr $getAttr`;
+			setAttr $setAttr $arr_XYZ[0] $arr_XYZ[1] $arr_XYZ[2];
+
+			// rotation
+			$setAttr = $arr_trafficLines[$i] + ".rotate";
+			$getAttr = $arr_zvizRigs[$i] + ".rotate";
+			float $arr_RST[] = `getAttr $getAttr`;
+			setAttr $setAttr $arr_RST[0] $arr_RST[1] $arr_RST[2];
+
+			// scale
+			$setAttr = $arr_trafficLines[$i] + ".scale";
+			$getAttr = $arr_zvizRigs[$i] + ".scale";
+			float $arr_JKL[] = `getAttr $getAttr`;
+			setAttr $setAttr $arr_JKL[0] $arr_JKL[1] $arr_JKL[2];
+                        
+                        parent $arr_trafficLines[$i] "trafficRIG";
+                }	
+
+	}
+        
+}
+
+/*	getNodeOnSelected
+ * 	- returns commonly needed nodes for this tool
+ *	- args: 0 - for top node (either trafficRIG or trafficLine transform), 1 - for trafficLine node, 2 - for emitter node
+ */	
+global proc string getNodeOnSelected( int $a ){
+	string $arr_selected[] = `ls -l -sl`;
+	string $selected = $arr_selected[0];
+	print ("selected: " + $selected + "\n");
+	
+	string $match = `match "trafficRIG" $selected`;
+	if ( `strcmp $match "trafficRIG"` == 0 ) {
+		print ("main traffic rig is selected\n");
+		
+		string $arr_buffer1[];
+		$numtokens1 = `tokenize $selected ":" $arr_buffer1`; 
+		string $top_node = $arr_buffer1[0] + ":trafficLine1";
+                string $arr_buffer2[];
+		$numtokens2 = `tokenize $arr_buffer1[0] "|" $arr_buffer2`; 
+		string $ns = $arr_buffer2[1];
+                
+		if ( $a == 0 ) {
+			// return top node
+			return $top_node;
+
+		} else if ( $a == 1 ) {
+			// return traffic line node
+			return $top_node + "|" + $ns +":trafficPath";	
+
+		} else if ( $a == 2 ) {
+			// return emitter node
+			return $top_node + "|"+ $ns +":trafficEmmiterSurface|"+ $ns +":emitter1Traffic";
+
+		} else {
+			// return nothing
+			return "";
+
+		}
+	}
+        else{
+                print "selection not part of traffic rig\n";
+                return $selected;
+        }
+}
+
+// button that does steps 2 and 3: connect traffic lines to emitters, then caches particles.
+proc bigButtonThatDoesEverything() {
+
+	// connect traffic to lines
+	las_connectTraffic(1);
+
+	// cache particles
+	las_trafficCache(1);
+
+}
+// empty proc. used as placeholder for other options
+proc doNothing() {
+	print ("nothing done'd\n");
+}

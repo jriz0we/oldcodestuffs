@@ -1,0 +1,812 @@
+// Copyright (c) 2010 Lucasfilm Ltd. All rights reserved. Used under
+// authorization. This material contains the confidential and proprietary
+// information of Lucasfilm Ltd. and may not be copied in whole or in part
+// without the express written permission of Lucasfilm Ltd. This copyright
+// notice does not imply publication.
+/***********************GUI CODE***********************
+*
+***********************************************************/
+global proc lalGeoInstrGUI(){
+	global string $instanceList[];
+        global string $emitSurf;
+        global string $emitSurfShaders[];
+        global int $seedValue;
+        string $noSurface ="No surface assigned";
+        // only one instance of this window open at a time
+  	if (`window -ex lalGeoInstrWin` > 0) {
+  		clear $instanceList;
+                $emitSurf = $noSurface;
+                deleteUI lalGeoInstrWin;
+        }
+	
+	window -title "The Clone Wars Geometry Instancer" lalGeoInstrWin;
+        scrollLayout -horizontalScrollBarThickness 24 -verticalScrollBarThickness 10 mainGuiScrollLayout;
+	columnLayout mainGuiColumnLayout ;
+        columnLayout -columnAttach "left" 5 -adjustableColumn true -columnAlign "center" -rowSpacing 3  mainGuiColumnSpacer ;
+
+	//**************************//
+	//** melscript for STEP 1 **//
+ 			frameLayout -label "Step 1 : Load Geometry or Asset Tags" -marginWidth 5 -borderStyle "in";
+ 			 	columnLayout;
+			                text -label "        Select the geo or the lalAsset nodes to be instanced";
+			                text -label "        on the surface selected in Step 2";
+                                        text -label "";
+ 				  	rowColumnLayout  -numberOfColumns 2 -columnWidth 1 120 -columnWidth 2 300;
+                				columnLayout;
+                                                        button -label "Add"	-annotation "Add geometry or lalAssetNodes to the current list"   
+                                                        -c "$instanceList = addToInputList($instanceList,$emitSurf,$seedValue);" -width 110 addToGeoListBtn;
+							button -label "Remove"  -annotation "Remove selected from the list"
+                                                        -c "$instanceList = removeFromInputList($instanceList,$emitSurf,$seedValue);"-width 110  subFrmGeoListBtn;
+							button -label "Clear" -annotation "Clear the list"  
+                                                        -c "$instanceList = clearInputList($instanceList,$emitSurf,$seedValue);" -width 110 clearGeoListBtn;
+                                                        button -label "Prep Assets" -annotation "orients assets down the X axis as required by Maya"  
+                                                        -c "prepInputGeo($instanceList);" -width 110 prepGeoListBtn;
+                                                setParent ..;
+                                                columnLayout;
+                                                        textScrollList  -numberOfRows 4 -h 80 -w 180 instGeoTxtList;
+                                                setParent ..;
+                                        setParent ..;
+                                        text -label "";
+                                setParent ..;
+          		setParent ..;
+
+	//**************************//
+	//** melscript for STEP 2 **//
+	  	frameLayout -label "Step 2 :Select Surface" -marginWidth 10 -borderStyle "in";
+	  		columnLayout;
+                		text -label "         Select the surface to cover or paint";
+                                text -label "";
+                                //text -align "center" -label $noSurface emitSurfLbl;
+                                rowColumnLayout -nc 2 -cw 1 70 -cw 2 150;
+				                text -label "Assign:" -align "left";
+                                                text -align "center" -label $emitSurf emitSurfLbl;
+                                                text -label ""-align "right";;
+                                                button -label "Add Selected Surface" -c ("$emitSurf = selectEmitSurf($emitSurf);");
+                                setParent..;
+                                
+                               
+                                text -label "";
+                                setParent..;
+                setParent ..;
+
+	//**************************//
+	//** melscript for STEP 3 **//
+	  	frameLayout -label "Step 3 : Create Particles on the Surface" -marginWidth 10 -borderStyle "in";
+ 			columnLayout;
+                		text -label "";
+                                text -label "Populate Surface with Instanced Geo List" -align "center";
+                                button -en false -height 32 -w 250 -c "$seedValue = particlesMain($instanceList, $emitSurf,0);" -label "Create Particles!" createPtcBtn;
+                                button -en false -height 32 -w 250  -c "$seedValue = particlesMain($instanceList, $emitSurf,1);" -label "Different seed" reRunBtn;
+                                text -label "";
+                        setParent ..;
+                setParent ..;
+	//**************************//
+	//** melscript for STEP 4 **//
+
+		frameLayout -label "Step 4 : Surface Adjustment Properties" -marginWidth 10 -borderStyle "in";
+			columnLayout;
+				text -label "";	
+				frameLayout -cl 0 -cll 1-w 370 -h 75 -bv true -lv true -l "Emmision Settings";
+                                        rowColumnLayout -nc 2 -cw 1 125 -cw 2 240;
+                                                        text -label "Duplication Count:";
+                                                        intSliderGrp -w 180 -field true -minValue 1 -maxValue 1000 -value 50 
+                                                        -cc ("int $ptcCount = `intSliderGrp -q -v pCountSldr`; setAttr ($emitSurf+\"ParticlesShape.maxCount\") $ptcCount;") pCountSldr;
+                                                        //text -label "Offset from surface:";
+                                                        //floatSliderGrp -field true -minValue -100 -maxValue 700 -value 0 surfOffSldr;					
+                                        setParent ..;
+                                setParent ..;
+                                frameLayout -cl 0 -cll 1-w 370 -h 140 -bv true -lv true -l "Artisan Paint Settings";
+                                        columnLayout ;
+                                                        button -height 32 -w 250 -c "$emitSurfShaders = setupEmitFromTexture($emitSurf);print $emitSurfShaders;" -label "Add and Assign emission shader" createShdrBtn;
+                                                        checkBox -label "Use Surface Color as Position Control"  -cc ("textureEmitToggle($emitSurf);") colorEmitCB;
+                                                        //checkBox -label "Position on Dark" -cc ("textureEmitToggle($emitSurf);") darkEmitCB;
+                                                        button -height 32 -w 250 -c "toggleShaders($emitSurf,$emitSurfShaders)" -label "toggle Work map with emit surface's shader" toggleShdrBtn;
+                                                        setParent ..;
+                                                setParent ..;
+                                frameLayout -cl 0 -cll 1-w 370 -h 160 -bv true -lv true -l "Randomization Settings";
+                                        columnLayout ;
+                                                         
+                                                         checkBox -label "Random Uniform Scale" -align "left" -v 1
+                                                        -onCommand ("emitSettingToggles($instanceList, $emitSurf,\"scaleCB\",$seedValue)") 
+                                                        -offCommand ("emitSettingToggles($instanceList, $emitSurf,\"scaleCB\",$seedValue)") scaleCB;
+                                                         rowColumnLayout -nc 3 -cw 1 70 -cw 2 120 -cw 3 120;
+                                                                text -label "Min / Max:";
+                                                                floatField -minValue 0.1 -maxValue 100 -value 0.5 -w 10 
+                                                                -cc ("emitSettingToggles($instanceList, $emitSurf,\"scaleCB\",$seedValue)") minScaleFltFld;
+                                                                floatField -minValue 0.1 -maxValue 100 -value 1.5 -w 10 
+                                                                -cc ("emitSettingToggles($instanceList, $emitSurf,\"scaleCB\",$seedValue)") maxScaleFltFld;
+                                                        setParent ..;
+                                                        checkBox -label "Align to Surface Normal" -align "left" 
+                                                        -onCommand ("emitSettingToggles($instanceList, $emitSurf,\"follSurfCB\",$seedValue)") 
+                                                        -offCommand ("emitSettingToggles($instanceList, $emitSurf,\"follSurfCB\",$seedValue)") -v 1 follSurfCB;
+                                                        checkBox -label "Random Y Axis rotation" -align "left" 
+                                                        -onCommand ("emitSettingToggles($instanceList, $emitSurf,\"follSurfYRotCB\",$seedValue)") 
+                                                        -offCommand ("emitSettingToggles($instanceList, $emitSurf,\"follSurfYRotCB\",$seedValue)")-v 1 follSurfYRotCB;
+
+                                                        //checkBox -label "Dutch angle rotation" -align "left" 
+                                                        //-onCommand "emitSettingToggles()" 
+                                                        //-offCommand "emitSettingToggles()" dutchCB; 
+                                                        //rowColumnLayout -nc 2 -cw 1 190 -cw 2 120;
+                                                        //        text -label "Max Random Rotation:";
+                                                        //        floatField -en false -minValue 0.0 -maxValue 100 -value 0.0 -w 10
+                                                        //        -cc ("float $dutch =`floatField -q -v dutchFltFld`;") dutchFltFld; 
+                                                        //setParent ..;
+                                                        setParent ..;
+                                                setParent ..;
+                                frameLayout -cl 0 -cll 1 -w 370 -h 125 -lv true -l "Specific Axis Alignment";
+                                        columnLayout ;
+                                                        rowColumnLayout -nc 3 -cw 1 120 -cw 2 120 -cw 3 120;
+                                                                checkBox -label "Y Axis Align" -align "left" 
+                                                                -onCommand ("emitSettingToggles($instanceList, $emitSurf,\"alignYCB\",$seedValue)" )
+                                                                -offCommand ("emitSettingToggles($instanceList, $emitSurf,\"alignYCB\",$seedValue)")alignYCB;
+                                                                checkBox -label "Rotation" -align "left"  -en false
+                                                                -onCommand ("emitSettingToggles($instanceList, $emitSurf,\"rotYCB\",$seedValue)") 
+                                                                -offCommand ("emitSettingToggles($instanceList, $emitSurf,\"rotYCB\",$seedValue)") rotYCB;
+                                                                /*checkBox -label "flip" -align "left" -en false
+                                                                -onCommand ("emitSettingToggles($instanceList, $emitSurf,\"flipYCB\",$seedValue)") 
+                                                                -offCommand ("emitSettingToggles($instanceList, $emitSurf,\"flipYCB\",$seedValue)") flipYCB;
+                                                                rowColumnLayout -nc 3 -cw 1 70 -cw 2 120 -cw 3 120;
+                                                                        text -label "Min / Max:";
+                                                                        floatField -en false -minValue 0.1 -maxValue 100 -value 0.5 -w 10 
+                                                                        -cc ("") minRotYFltFld;
+                                                                        floatField -en false -minValue 0.1 -maxValue 100 -value 1.5 -w 10 
+                                                                        -cc ("") maxRotYFltFld;
+                                                                setParent ..;*/
+                                                        setParent ..;
+                                                        rowColumnLayout -nc 3 -cw 1 120 -cw 2 120 -cw 3 120;
+                                                                checkBox -label "X Axis Align" -align "left" 
+                                                                -onCommand ("emitSettingToggles($instanceList, $emitSurf,\"alignXCB\",$seedValue)") 
+                                                                -offCommand ("emitSettingToggles($instanceList, $emitSurf,\"alignXCB\",$seedValue)") alignXCB;
+                                                                checkBox -label "Rotation" -align "left" -en false
+                                                                -onCommand ("emitSettingToggles($instanceList, $emitSurf,\"rotX'CB\",$seedValue)") 
+                                                                -offCommand ("emitSettingToggles($instanceList, $emitSurf,\"rotXCB\",$seedValue)") rotXCB;
+                                                                /*checkBox -label "flip" -align "left" -en false
+                                                                -onCommand ("emitSettingToggles($instanceList, $emitSurf,\"flipXCB\",$seedValue)") 
+                                                                -offCommand ("emitSettingToggles($instanceList, $emitSurf,\"flipXCB\",$seedValue)") flipXCB;
+                                                                rowColumnLayout -nc 3 -cw 1 70 -cw 2 120 -cw 3 120;
+                                                                        text -label "Min / Max:";
+                                                                        floatField -en false -minValue 0.1 -maxValue 100 -value 0.5 -w 10 
+                                                                        -cc ("") minRotXFltFld;
+                                                                        floatField -en false -minValue 0.1 -maxValue 100 -value 1.5 -w 10 
+                                                                        -cc ("") maxRotXFltFld;
+                                                                setParent ..;*/
+                                                        setParent ..;     
+                                                        rowColumnLayout -nc 3 -cw 1 120 -cw 2 120 -cw 3 120;  
+                                                                checkBox -label "Z Axis Align" -align "left" 
+                                                                -onCommand ("emitSettingToggles($instanceList, $emitSurf,\"alignZCB\",$seedValue)") 
+                                                                -offCommand ("emitSettingToggles($instanceList, $emitSurf,\"alignZCB\",$seedValue)") alignZCB;
+                                                                checkBox -label "Rotation" -align "left" -en false
+                                                                -onCommand ("emitSettingToggles($instanceList, $emitSurf,\"rotZCB\",$seedValue)") 
+                                                                -offCommand ("emitSettingToggles($instanceList, $emitSurf,\"rotZCB\",$seedValue)") rotZCB;
+                                                                /*checkBox -label "flip" -align "left" -en false
+                                                                -onCommand ("emitSettingToggles($instanceList, $emitSurf,\"flipZCB\",$seedValue)") 
+                                                                -offCommand ("emitSettingToggles($instanceList, $emitSurf,\"flipZCB\",$seedValue)") flipZCB;
+                                                                rowColumnLayout -nc 3 -cw 1 70 -cw 2 120 -cw 3 120;
+                                                                        text -label "Min / Max:";
+                                                                        floatField -en false -minValue 0.1 -maxValue 100 -value 0.5 -w 10 
+                                                                        -cc ("") minRotZFltFld;
+                                                                        floatField -en false -minValue 0.1 -maxValue 100 -value 1.5 -w 10 
+                                                                        -cc ("") maxRotZFltFld;
+                                                                setParent ..;*/
+                                                        setParent ..;
+                                //setParent ..;
+                        setParent mainGuiColumnSpacer;
+					
+	//**************************//
+	//** melscript for STEP 5 **//
+	  	frameLayout -label "Step 5 : Bake out Geo and Clean Up" -marginWidth 10 -borderStyle "in";
+ 			columnLayout;
+                		text -label "";
+                                text -label "Bake Instances to Geo " -align "center";
+                                button -height 32 -w 250  -enable true -label "Bake it out" -c "$instancer = $emitSurf+\"Instancer\";bakeInstancesNS($emitSurf,$instancer);" bakeGeoBtn;
+                                text -label "";
+                                text -label "Convert Baked selected lalAssets to lalSwitchers " -align "center";
+                                button -height 32 -w 250  -enable true -label "lalAsset to lalSwitcher" -c "assetToSwitcherWorkFlow();" lalAssetBtn;
+                                text -label "";
+                                text -label "Clean Up Work Emitters etc " -align "center";
+                                button -height 32 -w 250  -enable true -label "Clean up Particle Work" -c "cleanUpWork($emitSurf,$emitSurfShaders)" clnUpSceneBtn;
+                                text -label "";
+                        setParent ..;
+                setParent ..;
+
+				
+
+
+	//*******************************************************************************************************//
+	//************* END of Geo Instancer GUI ********************************************************//
+
+	//helpLine -h 30;
+	showWindow lalGeoInstrWin;
+	window -edit -widthHeight 475 850 lalGeoInstrWin;
+
+}
+
+global proc prepInputGeo(string $geoList[]){
+        select $geoList;
+        for ($geo in $geoList){
+                select $geo;
+                rotate -r -os 0 0 -90.0;
+                makeIdentity -apply true -t 1 -r 1 -s 1 -n 0;
+        }
+        print ("Input Geo is preped for use with particle Instancer.\n");
+}
+global proc string[] addToInputList(string $geoList[], string $emitSurf, int $seedValue){
+       string $ptcNameShape = $emitSurf+"ParticlesShape";
+       string $insterName = $emitSurf+"Instancer";
+       string $instList = "instGeoTxtList";
+       string $selected[] = `ls -sl`;
+       for ($sel in $selected){
+               int $found = stringArrayContains($sel, $geoList);
+               if (`objExists $sel` && $found==0){ //not in the existing list
+                       print("adding to list:"+$sel +"\n");
+                       $geoList[size($geoList)] = $sel;
+                       textScrollList  -e -append $sel $instList;
+               }
+               else {
+                        print("already exists in list:"+$sel +"\n");
+               }
+               
+       }
+       if ($emitSurf == ""){
+               print ("emission surface not set, not updating dynamics\n");
+       }
+       else if (`objExists $ptcNameShape` && `objExists $insterName`){
+               updateDynExpressions(`size($geoList)`, $ptcNameShape,$seedValue);
+               updateInstancer($geoList, $ptcNameShape,$insterName );
+               startStop();
+       }
+       
+       return $geoList;
+}
+global proc string[] removeFromInputList(string $geoList[], string $emitSurf, int $seedValue){
+        string $ptcNameShape = $emitSurf+"ParticlesShape";
+        string $insterName = $emitSurf+"Instancer";
+        string $instList = "instGeoTxtList";
+        string $selected[] = `ls -sl`;
+        for ($sel in $selected){
+                int $found = stringArrayContains($sel, $geoList);
+                if ($found){
+                        string $removeSel[];
+                        $removeSel[0]= $sel;
+                        print("removing from list:"+$sel +"\n");
+                        textScrollList  -e -removeItem $sel $instList;
+                        string $newgeoList[] = stringArrayRemove($removeSel, $geoList);
+                        print $newgeoList;
+                        $geoList = $newgeoList;
+                        clear $removeSel;
+                }
+        }
+        if ($emitSurf == ""){
+               print ("emission surface not set, not updating dynamics\n");
+       }
+       else if (`objExists $ptcNameShape` && `objExists $insterName`){
+               updateDynExpressions(`size($geoList)`, $ptcNameShape,$seedValue);
+               updateInstancer($geoList, $ptcNameShape,$insterName );
+               startStop();
+       }
+        return $geoList;
+}
+
+global proc string[] clearInputList(string $geoList[], string $emitSurf, int $seedValue){
+        string $ptcNameShape = $emitSurf+"ParticlesShape";
+        string $insterName = $emitSurf+"Instancer";
+        string $instList = "instGeoTxtList";
+        textScrollList -e -removeAll $instList;
+        string $newgeoList[];
+        $geoList = $newgeoList;
+        if ($emitSurf == ""){
+               print ("emission surface not set, not updating dynamics\n");
+       }
+       else if (`objExists $ptcNameShape` && `objExists $insterName`){
+               updateDynExpressions(`size($geoList)`, $ptcNameShape,$seedValue);
+               updateInstancer($geoList, $ptcNameShape,$insterName );
+                
+                startStop();
+       }
+        return $geoList;
+}
+global proc string selectEmitSurf(string $emitterSurf){
+        string $selected[] = `ls -sl`;
+        string $sel= $selected[0];//only take the 1st selection gotta limit some how
+        if (`gmatch $emitterSurf "No surface assigned"`){
+                $emitterSurf = $sel;
+                text -e -label $sel "emitSurfLbl";
+                button -e -en true "createPtcBtn";
+                button -e -en true "reRunBtn";
+        }
+        else {
+                $emitterSurf = $sel;
+                text -e -label $sel "emitSurfLbl";
+        }
+        return $emitterSurf;
+}
+
+global proc emitSettingToggles(string $geoList[], string $emitSurf, string $uiName, int $seedValue ){
+        string $ptcNameShape = $emitSurf+"ParticlesShape";
+        string $insterName = $emitSurf+"Instancer";
+        switch($uiName)
+        {
+                case "scaleCB":
+                        if (`checkBox -q -v scaleCB`){
+                                floatField -e -en true "minScaleFltFld";floatField -e -en true "maxScaleFltFld";
+                        }
+                        else {
+                               floatField -e -en false "minScaleFltFld";floatField -e -en false "maxScaleFltFld";
+                        }
+                        break;
+                case "follSurfCB":
+                        if (`checkBox -q -v follSurfCB`){
+                                checkBox -e -en true "follSurfYRotCB"; 
+                                checkBox -e -v 0 "alignYCB";checkBox -e -v 0 "alignXCB";checkBox -e -v 0 "alignZCB"; // turn off the other aligns
+                                checkBox -e -en false -v 0 "rotYCB"; checkBox -e -en false -v 0 "rotXCB";checkBox -e -en false -v 0 "rotZCB"; 
+                                checkBox -e -en false -v 0 "flipYCB"; checkBox -e -en false -v 0 "flipXCB";checkBox -e -en false -v 0 "flipZCB"; 
+                        }
+                        else {
+                               checkBox -e -en false -v 0 "follSurfYRotCB";
+                        }
+                        break;
+                case "alignYCB":
+                        if (`checkBox -q -v alignYCB`){
+                                checkBox -e -en true "rotYCB"; checkBox -e -en true "flipYCB"; 
+                                checkBox -e -v 0 "follSurfCB"; checkBox -e -v 0 "alignXCB"; checkBox -e -v 0 "alignZCB"; // turn off the other aligns
+                                checkBox -e -en false -v 0 "follSurfYRotCB"; checkBox -e -en false -v 0 "rotXCB"; checkBox -e -en false -v 0 "rotZCB"; 
+                                checkBox -e -en false -v 0 "flipXCB";checkBox -e -en false -v 0 "flipZCB"; 
+                        }
+                        else {
+                               checkBox -e -en false -v 0 "rotYCB"; checkBox -e -en false -v 0 "flipYCB"; 
+                        }
+                        break;
+                case "alignXCB":
+                        if (`checkBox -q -v alignXCB`){
+                                checkBox -e -en true "rotXCB"; checkBox -e -en true "flipXCB"; 
+                                checkBox -e -v 0 "follSurfCB"; checkBox -e -v 0 "alignYCB"; checkBox -e -v 0 "alignZCB"; // turn off the other aligns
+                                checkBox -e -en false -v 0 "follSurfYRotCB"; checkBox -e -en false -v 0 "rotYCB"; checkBox -e -en false -v 0 "rotZCB"; 
+                                checkBox -e -en false -v 0 "flipYCB";checkBox -e -en false -v 0 "flipZCB"; 
+                        }
+                        else {
+                               checkBox -e -en false -v 0 "rotXCB"; checkBox -e -en false -v 0 "flipXCB"; 
+                        }
+                        break;
+                case "alignZCB":
+                        if (`checkBox -q -v alignZCB`){
+                                checkBox -e -en true "rotZCB"; checkBox -e -en true "flipZCB"; 
+                                checkBox -e -v 0 "follSurfCB"; checkBox -e -v 0 "alignYCB"; checkBox -e -v 0 "alignXCB"; // turn off the other aligns
+                                checkBox -e -en false -v 0 "follSurfYRotCB"; checkBox -e -en false -v 0 "rotYCB"; checkBox -e -en false -v 0 "rotXCB"; 
+                                checkBox -e -en false -v 0 "flipYCB";checkBox -e -en false -v 0 "flipXCB"; 
+                        }
+                        else {
+                               checkBox -e -en false -v 0 "rotZCB"; checkBox -e -en false -v 0 "flipZCB"; 
+                        }
+                        break;
+                 default:
+                        break;
+                        
+        }
+        updateDynExpressions(`size($geoList)`, $ptcNameShape,$seedValue);
+        updateInstancer($geoList, $ptcNameShape,$insterName );
+        
+       
+}
+global proc surfEmitToggles(){
+
+}
+global proc string[] createParticles(string $geoList[],string $emitSurf){
+        //variable names
+        string $emitterName = $emitSurf + "Emitter";
+        string $ptcName = $emitSurf + "Particles";
+        string $insterName = $emitSurf + "Instancer"; 
+        //create the surface emitter, the particles, and connect the emitter surface as a goal        
+        select -cl;
+        select $emitSurf;
+        string $emitter[] = `emitter -type surface -r 1000 -nuv 1 -spd 0.01 -sro 0 -cye none -cyi 0 -sp 0 -n $emitterName`;
+        string $emitSurfPtcs[] = `particle -n $ptcName -c 1.0 `;
+        goal -w 1 -utr 0   -g $emitSurf $emitSurfPtcs[0];        
+        string $ptcShapeName = $emitSurfPtcs[1];        
+        //add custom attrs for instancer node to use to orient
+        //instance selection 
+        addAttr -ln "indexPP"  -dt doubleArray $ptcShapeName;
+        //random scaling
+        addAttr -ln "scalePP"  -dt vectorArray $ptcShapeName;
+        //rotation vector around X axis based on surface normal
+        addAttr -ln "surfRotOffPP"  -dt vectorArray $ptcShapeName;
+        addAttr -ln "surfRotPP"  -dt vectorArray $ptcShapeName;
+        //user specificied aim & user specified aim rotation around aim
+        addAttr -ln "aimVectorPP"  -dt vectorArray $ptcShapeName;
+        addAttr -ln "aimRotOffPP"  -dt vectorArray $ptcShapeName;
+        addAttr -ln "aimRotPP"  -dt vectorArray $ptcShapeName;
+        //Goal UV based stuff
+        //fix this line
+        //addPerParticleGoalPointAttr $ptcShapeName 0 WorldNormal vectorArray;
+        addAttr -ln goalWorldNormal0PP -dt vectorArray $ptcShapeName;
+        addAttr -ln goalU -dt doubleArray $ptcShapeName;
+        addAttr -ln goalU0 -dt doubleArray $ptcShapeName;
+        addAttr -ln goalV -dt doubleArray $ptcShapeName;
+        addAttr -ln goalV0 -dt doubleArray $ptcShapeName;
+        addAttr -ln parentU -dt doubleArray $ptcShapeName;
+        addAttr -ln parentU0 -dt doubleArray $ptcShapeName;
+        addAttr -ln parentV -dt doubleArray $ptcShapeName;
+        addAttr -ln parentV0 -dt doubleArray $ptcShapeName;
+        //create the particle instancer with the bare minimum wired
+        particleInstancer -name  $insterName -cycle None -cycleStep 1 -cycleStepUnits Frames -levelOfDetail Geometry -rotationUnits Radians -rotationOrder XYZ -position worldPosition -age age $ptcShapeName;
+
+        //setup return array of strings, and yes before you judge, I should make a class for this.
+        string $emissionRig[];
+        $emissionRig[0] = $emitter[1]; //actual emitter
+        $emissionRig[1] = $emitSurfPtcs[0]; //the particles created
+        $emissionRig[2] = $ptcShapeName; //the particles shape node
+        $emissionRig[3] = $insterName; //instancer node created
+        return $emissionRig;
+
+}
+
+global proc updateDynExpressions(int $geoListSize, string $ptcShapeName, int $seedValue){
+        print ("updating Instancer nodes...");
+        string $create; //particle on creation expression string
+        string $rbd;//particle run before dynamics expression string
+        float $scaleMin = `floatField -q -v minScaleFltFld`;
+        float $scaleMax = `floatField -q -v maxScaleFltFld`;
+        //int $seedValue = 42;
+        
+        if (`checkBox -q -v follSurfCB`){
+               print ("followSurface....");
+               $create = ("seed(id+"+$seedValue+");\ngoalU = parentU;\ngoalV = parentV;\n"
+                +$ptcShapeName+".indexPP = floor(rand("+$geoListSize+"));\n"
+                +$ptcShapeName+".scalePP = rand("+$scaleMin+","+$scaleMax+");\n"
+                +$ptcShapeName+".aimRotOffPP = <<rand(-1.0,1.0),0.0,rand(-1.0,1.0)>>;\n"
+                +$ptcShapeName+".surfRotOffPP = <<0.0,sin(id*rand(50)),cos(id * rand(5))>>;\n");
+               $rbd = ($ptcShapeName+".surfRotPP = "+$ptcShapeName+".surfRotOffPP;\n"
+                +$ptcShapeName+".aimRotPP = "+$ptcShapeName+".aimRotOffPP;\n");
+        }
+        else if (`checkBox -q -v alignXCB`){
+                print ("Aim on X....");
+               $create = ("seed(id+"+$seedValue+");\ngoalU = parentU;\ngoalV = parentV;\n"
+               +$ptcShapeName+".indexPP = floor(rand("+$geoListSize+"));\n"
+               +$ptcShapeName+".scalePP = rand("+$scaleMin+","+$scaleMax+");\n" 
+               +$ptcShapeName+".aimVectorPP = <<1,0,0>>;\n"
+               +$ptcShapeName+".aimRotOffPP = <<0.0,rand(-1.0,1.0),rand(-1.0,1.0)>>;\n");
+                $rbd = ($ptcShapeName+".aimRotPP = "+$ptcShapeName+".aimRotOffPP;\n");
+        }                
+        else if (`checkBox -q -v alignYCB`){   
+               print ("Aim on Y.....");
+               $create = ("seed(id+"+$seedValue+");\ngoalU = parentU;\ngoalV = parentV;\n"
+               +$ptcShapeName+".indexPP = floor(rand("+$geoListSize+"));\n"
+               +$ptcShapeName+".scalePP = rand("+$scaleMin+","+$scaleMax+");\n"
+               +$ptcShapeName+".aimVectorPP = <<0,1,0>>;\n"
+               +$ptcShapeName+".aimRotOffPP = <<rand(-1.0,1.0),0.0,rand(-1.0,1.0)>>;\n");
+                $rbd = ($ptcShapeName+".aimRotPP = "+$ptcShapeName+".aimRotOffPP;\n");
+         }
+         else if (`checkBox -q -v alignZCB`){   
+               print ("Aim on Z....");
+               $create = ("seed(id+"+$seedValue+");\ngoalU = parentU;\ngoalV = parentV;\n"
+               +$ptcShapeName+".indexPP = floor(rand("+$geoListSize+"));\n"
+               +$ptcShapeName+".scalePP = rand("+$scaleMin+","+$scaleMax+");\n" 
+               +$ptcShapeName+".aimVectorPP = <<0,0,1>>;\n"
+               +$ptcShapeName+".aimRotOffPP = <<rand(-1.0,1.0),rand(-1.0,1.0),0.0>>;\n");
+                $rbd = ($ptcShapeName+".aimRotPP = "+$ptcShapeName+".aimRotOffPP;\n");
+         }
+         else if (`checkBox -q -v flipXCB`){
+                print ("Aim on X....");
+               $create = ("seed(id+"+$seedValue+");\ngoalU = parentU;\ngoalV = parentV;\n"
+               +$ptcShapeName+".indexPP = floor(rand("+$geoListSize+"));\n"
+               +$ptcShapeName+".scalePP = rand("+$scaleMin+","+$scaleMax+");\n" 
+               +$ptcShapeName+".aimVectorPP = <<-1,0,0>>;\n"
+               +$ptcShapeName+".aimRotOffPP = <<0.0,rand(-1.0,1.0),rand(-1.0,1.0)>>;\n");
+                $rbd = ($ptcShapeName+".aimRotPP = "+$ptcShapeName+".aimRotOffPP;\n");
+        }                
+        else if (`checkBox -q -v flipYCB`){   
+               print ("Aim on Y.....");
+               $create = ("seed(id+"+$seedValue+");\ngoalU = parentU;\ngoalV = parentV;\n"
+               +$ptcShapeName+".indexPP = floor(rand("+$geoListSize+"));\n"
+               +$ptcShapeName+".scalePP = rand("+$scaleMin+","+$scaleMax+");\n"
+               +$ptcShapeName+".aimVectorPP = <<0,-1,0>>;\n"
+               +$ptcShapeName+".aimRotOffPP = <<rand(-1.0,1.0),0.0,rand(-1.0,1.0)>>;\n");
+                $rbd = ($ptcShapeName+".aimRotPP = "+$ptcShapeName+".aimRotOffPP;\n");
+         }
+         else if (`checkBox -q -v flipZCB`){   
+               print ("Aim on Z....");
+               $create = ("seed(id+"+$seedValue+");\ngoalU = parentU;\ngoalV = parentV;\n"
+               +$ptcShapeName+".indexPP = floor(rand("+$geoListSize+"));\n"
+               +$ptcShapeName+".scalePP = rand("+$scaleMin+","+$scaleMax+");\n" 
+               +$ptcShapeName+".aimVectorPP = <<0,0,-1>>;\n"
+               +$ptcShapeName+".aimRotOffPP = <<rand(-1.0,1.0),rand(-1.0,1.0),0.0>>;\n");
+                $rbd = ($ptcShapeName+".aimRotPP = "+$ptcShapeName+".aimRotOffPP;\n");
+         }
+        dynExpression -s $create -c $ptcShapeName;
+        dynExpression -s $rbd -rbd $ptcShapeName;
+        print ("done!\n");
+
+}
+global proc updateInstancer(string $geoList[], string $ptcShapeName, string $instancer){
+       print ("updating Instancer nodes...");
+       //update instancer geolist
+        particleInstancer -q $ptcShapeName;//clear object list
+        for ($geo in $geoList){
+                particleInstancer -e -addObject -object $geo $ptcShapeName;
+        }
+        particleInstancer -e -name $instancer -objectIndex "indexPP" $ptcShapeName;
+        particleInstancer -e -name $instancer -aimDirection "" $ptcShapeName; //reset aim's
+        particleInstancer -e -name $instancer -aimUpAxis "" $ptcShapeName;
+        // scale toggle
+        if (`checkBox -q -v  scaleCB`){
+                particleInstancer -e -name $instancer -scale "scalePP" $ptcShapeName;
+        }
+        else{
+                particleInstancer -e -name $instancer -scale "" $ptcShapeName;
+        }
+        //surface follow toggle
+        if (`checkBox -q -v  follSurfCB`){
+                particleInstancer -e -name $instancer -aimDirection "goalWorldNormal0PP" $ptcShapeName;
+        }
+        if(`checkBox -q -v  follSurfYRotCB`&& `checkBox -q -v  follSurfCB`){
+                particleInstancer -e -name $instancer -aimWorldUp "" $ptcShapeName;
+                particleInstancer -e -name $instancer -aimUpAxis "surfRotPP" $ptcShapeName;
+                
+        }
+        //use aim axis toggle
+        else if(`checkBox -q -v  alignXCB` ||`checkBox -q -v  alignYCB` ||`checkBox -q -v  alignZCB` ){
+                particleInstancer -e -name $instancer -aimDirection "aimVectorPP" $ptcShapeName;
+                if(`checkBox -q -v  rotXCB` ||`checkBox -q -v  rotYCB` ||`checkBox -q -v  rotZCB` ){
+                        particleInstancer -e -name $instancer -aimUpAxis "" $ptcShapeName;
+                        particleInstancer -e -name $instancer -aimWorldUp "aimRotPP" $ptcShapeName;
+                }
+                else {
+                        particleInstancer -e -name $instancer -aimWorldUp "" $ptcShapeName;
+                }
+
+        }
+        
+        print ("done!\n");
+}
+
+global proc int particlesMain(string $geoList[], string $emitSurf, int $newSeed){
+        string $emitterName = $emitSurf + "Emitter";
+        string $ptcName = $emitSurf + "Particles";
+        string $ptcNameShape= $emitSurf + "ParticlesShape";
+        string $insterName = $emitSurf + "Instancer";
+        int $ptcCount = `intSliderGrp -q -v pCountSldr`;
+        int $seedValue;
+        //create the emitter
+        if ($newSeed){
+                $seedValue = floor(rand(360));
+                print ("Seed Value = "+ $seedValue + "\n");
+        }
+        if (`objExists $emitterName` &&`objExists $ptcName` &&`objExists $emitterName`){
+                print ("emission rig exists, update settings\n");
+                setAttr ($ptcNameShape+".maxCount") $ptcCount;
+                updateDynExpressions(`size($geoList)`, $ptcNameShape, $seedValue);
+                updateInstancer($geoList, $ptcNameShape,$insterName );
+                
+        }
+        else{
+                print ("1st time running, creatingParticles\n");
+                string $emitRig[] = createParticles($geoList,$emitSurf);
+                $emitterName = $emitRig[0]; //name created from $emitSurf
+                $ptcName = $emitRig[1];
+                $ptcNameShape = $emitRig[2];
+                $insterName = $emitRig[3];
+                $seedValue = 42;
+                updateDynExpressions(`size($geoList)`, $ptcNameShape, $seedValue);
+                updateInstancer($geoList, $ptcNameShape,$insterName );
+                setAttr ($ptcNameShape+".maxCount") $ptcCount;
+                connectDynamic -em $emitterName $ptcName;
+                startStop();
+        }
+        return $seedValue;
+}
+global proc startStop() {
+	
+        playButtonStart;
+        playButtonForward;
+
+}
+global proc textureEmitToggle(string $emitSurf) {
+	string $obj[] = `ls -dag -ni -type "mesh" $emitSurf`;
+	string $sgs[] = getSGsFromShape($obj[0]);
+    int $colorEmitCB = `checkBox -q -v colorEmitCB`;
+	if ($colorEmitCB){
+                for ($sg in $sgs){
+                        string $material = getMaterialFromSG($sg);
+                        string $fileNode = getTextureFromMaterial($material);
+                        connectAttr -force $fileNode ($emitSurf+"Emitter.textureRate");
+                        setAttr ($emitSurf+"Emitter.enableTextureRate") 1;
+                }
+        }
+    else { 
+                for ($sg in $sgs){
+                        string $material = getMaterialFromSG($sg);
+                        string $fileNode = getTextureFromMaterial($material);
+                        setAttr ($emitSurf+"Emitter.enableTextureRate") 0;
+                        disconnectAttr $fileNode ($emitSurf+"Emitter.textureRate");
+                }
+        }
+    
+}
+global proc string[] setupEmitFromTexture(string $emitSurf){
+    string $obj[] = `ls -dag -ni -type "mesh" $emitSurf`;
+	string $emitSurfOrigShaders[] = getSGsFromShape($obj[0]);
+    
+    $material = `shadingNode -asShader lambert -n ($emitSurf + "instPaint1")`;
+    $newsg = `sets -renderable true -noSurfaceShader true -empty -name ($material + "SG")`;
+    
+    $texture =`shadingNode -asTexture file -n ($emitSurf +"instPaintFile1")`;
+    connectAttr -force ($texture +".outColor") ($material +".color");
+    
+    defaultNavigation -connectToExisting -source $material -destination $newsg;
+    select $emitSurf;
+    hyperShade -assign $newsg;
+    sets -e -forceElement $newsg;
+    return $emitSurfOrigShaders;
+}
+global proc toggleShaders(string $emitSurf, string $emitSurfShaders[]){
+    string $obj[] = `ls -dag -ni -type "mesh" $emitSurf`;
+	string $currentSG[] = getSGsFromShape($obj[0]);
+    print $currentSG;
+    if (`gmatch $currentSG[0] "*instPaint*"`){//if the emissionSG is assigned
+       select $emitSurf;
+       hyperShade -assign $emitSurfShaders; //reassign the originals
+       //sets -e -forceElement $emitSurfShaders;
+    }
+    else{
+        select $emitSurf;
+        hyperShade -assign ($emitSurf +"instPaint1SG"); //reassign the originals
+        //sets -e -forceElement ($emitSurf +"instPaint1SG");
+    }
+}
+global proc string[] getSGsFromShape( string $shape ){
+  	string $shadingEngines[];
+	
+  	if ( `objExists $shape` )
+ 	{
+   		string $dest[] = `listConnections -destination true -source false -plugs false -type "shadingEngine" $shape`;
+
+       	if ( size( $dest ) )
+    	{
+      	 string $select[] = `ls -sl`;
+     	 select -r -ne $dest;
+     	 $shadingEngines = `ls -sl`;
+     	 select -r $select;
+    	}
+ 	 }
+
+ 	return $shadingEngines;
+}
+global proc string getMaterialFromSG( string $SG ){
+  	string $material = "";
+
+  	if ( "shadingEngine" == `nodeType $SG` &&  `connectionInfo -id ( $SG + ".surfaceShader" )` )
+ 	{
+    	$material = `connectionInfo -sfd ( $SG + ".surfaceShader" )` ;
+  	}
+	string $buffer[];
+	tokenize $material "." $buffer;
+  	
+  	return $buffer[0];
+}
+
+global proc string getTextureFromMaterial( string $material ){
+ 	string $texture = "";
+
+  	string $class[] = getClassification( `nodeType $material` );
+
+  	if ( "shader/surface" == $class[0] && `connectionInfo -id ( $material + ".color" )` )
+  	{
+    	$texture = `connectionInfo -sfd ( $material + ".color" )` ;
+  	}
+
+
+  	return $texture;
+}
+global proc assetToSwitcherWorkFlow(){
+        dagArtsUtils(); dagArtsUtils_Utils_Switcher_MakeFromComponent( dagArts_IC_SelectedNodesHierarachy() );
+        rotate -r -os 0 0 -90.0;
+}
+global proc bakeInstancesNS(string $emitSurf, string $instancer){
+        catch (`loadPlugin ("/sww/proj/cw/lib/maya/2008/plug-ins/NimbleTools.py")`);
+        string $ptcName = $emitSurf + "Particles";
+        string $ptcNameShape= $emitSurf + "ParticlesShape";
+        nsUninstancer -instancer $instancer -bakeType "geometry" -frameStep 1 -copyAsInstance 0 ("|"+$ptcName+"|"+$ptcNameShape);
+}
+global proc bakeInstancesMANUAL(string $instancer){
+        if(`objExists $instancer`){
+                // Output
+                print($instancer+" is going to be baked.\n");
+                // Variables
+                int $start=`playbackOptions -q -min`;
+                int $end=`playbackOptions -q -max`;
+                string $objInst[] = `listConnections ($instancer+".inputHierarchy")`;
+                string $inPoints[] = `listConnections ($instancer+".inputPoints")`;
+                string $inPointShp[] = `listRelatives -s $inPoints[0]`;
+                int $curCount=0;
+                int $prevCount=0;
+                string $object[]; clear $object;
+                string $objDup[]; clear $objDup;
+                float $objId[]; clear $objId;
+                
+                // Output
+                print($inPoints[0]+" is linked to the instancer.\n");
+                
+                // GROUP of the baked geometry
+                string $group = `group -name bakedOutput -em`;
+
+                // PROGRESS Message
+                int $amount = 0;
+                //progressWindow -title "Geo Instancer Bake Progress" -progress $amount
+                //-status "Sleeping: 0%" -isInterruptable true;
+                for($t=$start;$t<=$end;$t++){
+                        // Check if the dialog has been cancelled
+                        //if ( `progressWindow -query -isCancelled` ) break;
+                                
+                        // Store the amount of particles
+                        currentTime $t;
+                        $prevCount = $curCount;
+                        $curCount = `particle -q -count $inPointShp[0]`;
+                        //int $maxCount = `getAttr ($inPointShp[0]+".maxCount")`;
+                        // For each particles
+                        for($i=0; $i < $curCount; $i++){
+                                // Current Particle
+                                string $tmp = $inPointShp[0]+".pt["+$i+"]";
+                                // If it's a new particle. Create and parent this object.
+                                if($i>($prevCount-1)){
+                                        $objId = `getParticleAttr -at indexPP $tmp`;
+                                        int $ind = $objId[0];
+                                        $object = `duplicate $objInst[$ind]`;
+                                        parent $object[0] $group;
+                                        $objDup[size($objDup)] = $object[0];
+                                
+                               // }
+
+                                // Retrieve position, rotation and scale informations.
+                                float $alignPP[]=`getParticleAttr -at aimVectorPP $tmp`;
+                                print ($tmp + ": aimVector = <<"+ $alignPP[0]+", "+ $alignPP[1]+", "+ $alignPP[1]+",>>\n ");
+                                float $alignRotPP[] =`getParticleAttr -at aimRotOffPP $tmp`;
+                                print ($tmp + ": aimRot = <<"+ $alignRotPP[0]+", "+ $alignRotPP[1]+", "+ $alignRotPP[1]+",>>\n ");
+                                float $surfAlignPP[]=`getParticleAttr -at goalWorldNormal0PP $tmp`;
+                                print ($tmp + ": goalWorldNormal = <<"+ $surfAlignPP[0]+", "+ $surfAlignPP[1]+", "+ $surfAlignPP[1]+",>>\n ");
+                                float $surfAlignRotPP[] = `getParticleAttr -at surfRotOffPP $tmp`;
+                                //print ($tmp + ": AlignSurfRot (rad)= <<"+ $surfAlignRotPP[0]+", "+ $surfAlignRotPP[1]+", "+ $surfAlignRotPP[1]+",>>\n ");
+                                float $posPP[] = `getParticleAttr -at position $tmp`;
+                                float $scalePP[] = `getParticleAttr -at scalePP $tmp`;
+                                move -ws $posPP[0] $posPP[1] $posPP[2] $objDup[$i];
+                                if (`checkBox -q -v scaleCB`)scale $scalePP[0] $scalePP[1] $scalePP[2] $objDup[$i];
+                                
+                                //if (`checkBox -q -v follSurfCB`) rotate -eu $surfAlignPP[0] $surfAlignPP[1] $surfAlignPP[2] $objDup[$i];
+                                 /*else if (`checkBox -q -v  alignXCB` ||`checkBox -q -v  alignYCB` ||`checkBox -q -v  alignZCB`){
+                                        rotate -eu $alignPP[0] $alignPP[1] $alignPP[2] $objDup[$i];
+                                         if (`checkBox -q -v  rotXCB` ||`checkBox -q -v  rotYCB` ||`checkBox -q -v  rotZCB` ) rotate -eu $alignRotPP[0] $alignRotPP[1] $alignRotPP[2] $objDup[$i];
+                                }*/
+                                float $rot1[] =`angleBetween -euler -v1 1 0 0 -v2 $surfAlignPP[0] $surfAlignPP[1] $surfAlignPP[2]`;
+                                float $rot2[]=`angleBetween -euler -v1 1 0 0 -v2 $alignPP[0] $alignPP[1] $alignPP[2]`; 
+                                float $rot3[]=`angleBetween -euler -v1 $alignPP[0] $alignPP[1] $alignPP[2] -v2 $alignRotPP[0] $alignRotPP[1] $alignRotPP[2]`; 
+                                print $rot3;
+                                if (`checkBox -q -v follSurfCB`) rotate -eu $rot1[0] $rot1[1] $rot1[2] $objDup[$i];
+                                else if (`checkBox -q -v  alignXCB` ||`checkBox -q -v  alignYCB` ||`checkBox -q -v  alignZCB`) rotate -eu $rot2[0] $rot2[1] $rot2[2] $objDup[$i];
+                                //if (`checkBox -q -v follSurfYRotCB`) xform -r -ra $surfAlignPP[0] $surfAlignPP[1] $surfAlignPP[2] -eu -ro $rot2[0] $rot2[1] $rot2[2] $objDup[$i];
+                               if (`checkBox -q -v  rotXCB` ||`checkBox -q -v  rotYCB` ||`checkBox -q -v  rotZCB` ) rotate -r -eu  $objDup[$i];
+                                }
+                        }	
+                // Percentage for the progress window
+                //$amount = ($t-$start)*100/($end-$start);
+                //progressWindow -e -progress $amount -status ("Bake: "+$amount+"%");
+                }
+        // End of the progress window
+        //progressWindow -endProgress;
+        }
+
+}
+global proc cleanUpWork(string $emitSurf, string $emitSurfShaders[]){        
+    
+    string $emitterName = $emitSurf + "Emitter";
+    string $ptcName = $emitSurf + "Particles";
+    string $insterName = $emitSurf + "Instancer"; 
+    //select all emitters, instancers, and ptcs and delete
+    delete $emitterName;
+    delete $ptcName;
+    delete $insterName;
+    select $emitSurf;
+    hyperShade -assign $emitSurfShaders; //reassign the originals
+    sets -e -forceElement $emitSurfShaders;
+    $shaders = `itemFilter -byName "*instPaint*"`;
+    print $shaders;
+    delete $shaders;
+
+}
